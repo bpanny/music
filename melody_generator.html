@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Track Melody Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/MidiWriter.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .control-label {
+            @apply text-sm font-medium text-gray-400;
+        }
+        .control-value {
+            @apply text-lg font-semibold text-white;
+        }
+        /* Custom styles for range sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #4a5568; /* gray-700 */
+            border-radius: 9999px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #818cf8; /* indigo-400 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #1f2937; /* gray-800 */
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #818cf8; /* indigo-400 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #1f2937; /* gray-800 */
+        }
+        .track {
+            @apply bg-gray-800 p-6 rounded-xl border border-gray-700 mb-6;
+        }
+        .loop-btn-active {
+            @apply bg-purple-600 shadow-purple-500/50;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen py-8">
+
+    <div class="w-full max-w-4xl mx-auto p-4">
+        <header class="text-center mb-8">
+            <h1 class="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-500">Multi-Track Composer</h1>
+            <p class="text-gray-400 mt-2">Generate and layer multiple melodies to create a song.</p>
+        </header>
+
+        <!-- Global Controls -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-8">
+            <button id="play-all" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-green-500/50 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Play All
+            </button>
+            <button id="stop-all" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-red-500/50 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                Stop All
+            </button>
+            <button id="loop-toggle" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-gray-500/50 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1a9 9 0 0 1 4 7.9"/><path d="M17 2.1a9 9 0 0 0-7.9 4"/><path d="M12 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/><path d="M12 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/><path d="M21.9 12a9 9 0 0 1-7.9 4"/><path d="M3.1 12a9 9 0 0 1 4-7.9"/><path d="M21.9 12a9 9 0 0 0-4-7.9"/><path d="M3.1 12a9 9 0 0 0 7.9 4"/></svg>
+                Loop: OFF
+            </button>
+        </div>
+
+
+        <!-- Tracks Container -->
+        <div id="tracks-container">
+            <!-- Track 1: Lead -->
+            <div class="track" data-track-id="lead">
+                <h2 class="text-2xl font-semibold mb-4 text-indigo-400">Track 1: Lead</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    <!-- Controls -->
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><label class="control-label">Key</label><select class="key-select w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1"><option>C</option><option>C#</option><option>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><label class="control-label">Scale</label><select class="scale-select w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1"><option value="major">Major</option><option value="minor">Minor</option><option value="harmonicMinor">Harmonic Minor</option><option value="pentatonicMajor">Pentatonic Major</option><option value="pentatonicMinor">Pentatonic Minor</option></select></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><label class="control-label">Octave</label><select class="octave-select w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1"><option>2</option><option>3</option><option selected>4</option><option>5</option></select></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><div class="flex justify-between items-center"><label class="control-label">Tempo</label><span class="control-value bpm-value">120</span></div><input type="range" class="bpm-slider w-full mt-2" min="40" max="240" value="120"></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg col-span-1 md:col-span-2"><div class="flex justify-between items-center"><label class="control-label">Number of Notes</label><span class="control-value notes-value">16</span></div><input type="range" class="notes-slider w-full mt-2" min="4" max="32" value="16" step="1"></div>
+                    <div class="col-span-1 md:col-span-2 flex items-end gap-4">
+                        <button class="generate-btn w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200">Generate Lead</button>
+                        <a role="button" class="download-midi-link w-full text-center bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 opacity-50 pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download MIDI
+                        </a>
+                    </div>
+                </div>
+                <div class="melody-display-container bg-gray-900/70 p-4 rounded-lg min-h-[60px] border border-gray-700"><div class="melody-display flex flex-wrap gap-2 text-sm"><span class="text-gray-500">Generate a melody...</span></div></div>
+            </div>
+            
+            <!-- Track 2: Bass -->
+             <div class="track" data-track-id="bass">
+                <h2 class="text-2xl font-semibold mb-4 text-purple-400">Track 2: Bass</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    <!-- Controls -->
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><label class="control-label">Key</label><select class="key-select w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1"><option>C</option><option>C#</option><option>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><label class="control-label">Scale</label><select class="scale-select w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1"><option value="major">Major</option><option value="minor">Minor</option><option value="pentatonicMinor">Pentatonic Minor</option></select></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><label class="control-label">Octave</label><select class="octave-select w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1"><option>1</option><option selected>2</option><option>3</option></select></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg"><div class="flex justify-between items-center"><label class="control-label">Tempo</label><span class="control-value bpm-value">60</span></div><input type="range" class="bpm-slider w-full mt-2" min="20" max="120" value="60"></div>
+                    <div class="bg-gray-700/50 p-3 rounded-lg col-span-1 md:col-span-2"><div class="flex justify-between items-center"><label class="control-label">Number of Notes</label><span class="control-value notes-value">8</span></div><input type="range" class="notes-slider w-full mt-2" min="2" max="16" value="8" step="1"></div>
+                     <div class="col-span-1 md:col-span-2 flex items-end gap-4">
+                        <button class="generate-btn w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200">Generate Bass</button>
+                        <a role="button" class="download-midi-link w-full text-center bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 opacity-50 pointer-events-none">
+                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download MIDI
+                        </a>
+                    </div>
+                </div>
+                 <div class="melody-display-container bg-gray-900/70 p-4 rounded-lg min-h-[60px] border border-gray-700"><div class="melody-display flex flex-wrap gap-2 text-sm"><span class="text-gray-500">Generate a melody...</span></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global DOM Elements ---
+        const playAllBtn = document.getElementById('play-all');
+        const stopAllBtn = document.getElementById('stop-all');
+        const loopToggleBtn = document.getElementById('loop-toggle');
+        const tracksContainer = document.getElementById('tracks-container');
+
+        // --- Track State Management ---
+        const tracks = {};
+
+        // --- Tone.js Setup ---
+        const reverb = new Tone.Reverb(0.8).toDestination();
+        reverb.wet.value = 0.4;
+
+        const synths = {
+            lead: new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'triangle8' },
+                envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 1.4 }
+            }).connect(reverb),
+            bass: new Tone.MonoSynth({
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.02, decay: 0.3, sustain: 0.2, release: 1 },
+                filterEnvelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.2, baseFrequency: 300, octaves: 4 }
+            }).connect(reverb)
+        };
+
+        const scales = {
+            major: [0, 2, 4, 5, 7, 9, 11],
+            minor: [0, 2, 3, 5, 7, 8, 10],
+            harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
+            pentatonicMajor: [0, 2, 4, 7, 9],
+            pentatonicMinor: [0, 3, 5, 7, 10]
+        };
+        
+        // --- Track Initialization ---
+        document.querySelectorAll('.track').forEach(trackElement => {
+            const trackId = trackElement.dataset.trackId;
+            tracks[trackId] = {
+                id: trackId,
+                el: trackElement,
+                melody: [],
+                sequence: null,
+                get bpm() { return parseFloat(this.el.querySelector('.bpm-slider').value); },
+            };
+            setupTrackEventListeners(tracks[trackId]);
+        });
+
+        function setupTrackEventListeners(track) {
+            const bpmSlider = track.el.querySelector('.bpm-slider');
+            const bpmValue = track.el.querySelector('.bpm-value');
+            const notesSlider = track.el.querySelector('.notes-slider');
+            const notesValue = track.el.querySelector('.notes-value');
+            const generateBtn = track.el.querySelector('.generate-btn');
+            
+            bpmSlider.addEventListener('input', e => bpmValue.textContent = e.target.value);
+            notesSlider.addEventListener('input', e => notesValue.textContent = e.target.value);
+            generateBtn.addEventListener('click', () => generateNotesForTrack(track));
+        }
+
+        // --- Music Logic ---
+        function getNoteFromMidi(midi) {
+            const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+            const octave = Math.floor(midi / 12) - 1;
+            return notes[midi % 12] + octave;
+        }
+
+        function getMidiFromNote(note) {
+            const notes = { "C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11 };
+            const octave = parseInt(note.slice(-1));
+            const key = note.slice(0, -1);
+            return notes[key] + (octave + 1) * 12;
+        }
+
+        function generateNotesForTrack(track) {
+            const rootNote = track.el.querySelector('.key-select').value;
+            const scaleName = track.el.querySelector('.scale-select').value;
+            const octave = track.el.querySelector('.octave-select').value;
+            const numNotes = parseInt(track.el.querySelector('.notes-slider').value, 10);
+            
+            const rootMidi = getMidiFromNote(rootNote + octave);
+            const scaleIntervals = scales[scaleName];
+            
+            const availableMidiNotes = [];
+            for (let i = -1; i < 2; i++) {
+                scaleIntervals.forEach(interval => availableMidiNotes.push(rootMidi + interval + (i * 12)));
+            }
+
+            track.melody = [];
+            for (let i = 0; i < numNotes; i++) {
+                const randomIndex = Math.floor(Math.random() * availableMidiNotes.length);
+                track.melody.push({
+                    note: getNoteFromMidi(availableMidiNotes[randomIndex]),
+                    duration: '8n'
+                });
+            }
+            updateMelodyDisplay(track);
+            updateMidiDownloadLink(track);
+        }
+
+        function updateMelodyDisplay(track) {
+            const display = track.el.querySelector('.melody-display');
+            display.innerHTML = '';
+            if (track.melody.length === 0) {
+                display.innerHTML = `<span class="text-gray-500">Generate a melody...</span>`;
+                return;
+            }
+            const color = track.id === 'lead' ? 'indigo' : 'purple';
+            track.melody.forEach(({ note }, index) => {
+                const noteEl = document.createElement('div');
+                noteEl.className = `note-item bg-${color}-500/20 text-${color}-300 rounded-md px-3 py-1 font-mono transition-all duration-100`;
+                noteEl.textContent = note;
+                noteEl.dataset.index = index;
+                display.appendChild(noteEl);
+            });
+        }
+
+        // --- MIDI Export using Data URI in an <a> tag ---
+        function updateMidiDownloadLink(track) {
+            if (track.melody.length === 0) return;
+
+            const MidiWriter = window.MidiWriter;
+            if (!MidiWriter) {
+                console.error("MIDI Writer library is not loaded.");
+                return;
+            }
+
+            const midiTrack = new MidiWriter.Track();
+            midiTrack.setTempo(track.bpm);
+            const noteEvents = track.melody.map(noteData => new MidiWriter.NoteEvent({ pitch: [noteData.note], duration: '8' }));
+            midiTrack.addEvent(noteEvents, () => ({ sequential: true }));
+
+            const writer = new MidiWriter.Writer(midiTrack);
+            const dataUri = writer.dataUri();
+            
+            const link = track.el.querySelector('.download-midi-link');
+            link.href = dataUri;
+            link.download = `${track.id}_melody_${track.bpm}bpm.mid`;
+            
+            // Enable the link by making it visible and clickable
+            link.classList.remove('opacity-50', 'pointer-events-none');
+        }
+
+        // --- Global Playback Control ---
+        async function playAll() {
+            await Tone.start();
+            if (Tone.Transport.state === 'started') stopAll();
+
+            let longestDuration = 0;
+
+            Object.values(tracks).forEach(track => {
+                if (track.melody.length > 0) {
+                    const subdivision = '8n';
+                    const totalTime = Tone.Time(subdivision).toSeconds() * track.melody.length * (120 / track.bpm);
+                    if (totalTime > longestDuration) longestDuration = totalTime;
+
+                    if (track.sequence) track.sequence.dispose();
+                    track.sequence = new Tone.Sequence((time, value) => {
+                        synths[track.id].triggerAttackRelease(value.note, value.duration, time);
+                        Tone.Draw.schedule(() => highlightNote(track, value.index), time);
+                    }, track.melody.map((v, i) => ({...v, index: i})), subdivision).start(0);
+                    track.sequence.playbackRate = track.bpm / 120;
+                }
+            });
+
+            if (longestDuration > 0) {
+                Tone.Transport.loop = loopToggleBtn.dataset.loop === 'true';
+                Tone.Transport.loopEnd = longestDuration;
+                Tone.Transport.start();
+            }
+        }
+
+        function stopAll() {
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            Object.values(tracks).forEach(track => {
+                if (track.sequence) track.sequence.dispose();
+                unhighlightAllNotes(track);
+            });
+        }
+
+        function toggleLoop() {
+            const isLooping = !(loopToggleBtn.dataset.loop === 'true');
+            loopToggleBtn.dataset.loop = isLooping;
+            Tone.Transport.loop = isLooping;
+            if (isLooping) {
+                loopToggleBtn.textContent = 'Loop: ON';
+                loopToggleBtn.classList.add('loop-btn-active');
+            } else {
+                loopToggleBtn.textContent = 'Loop: OFF';
+                loopToggleBtn.classList.remove('loop-btn-active');
+            }
+        }
+        
+        function highlightNote(track, index) {
+            unhighlightAllNotes(track);
+            const activeNote = track.el.querySelector(`.note-item[data-index='${index}']`);
+            if(activeNote) {
+                const color = track.id === 'lead' ? 'indigo' : 'purple';
+                activeNote.classList.add(`bg-${color}-500`, 'text-white', 'scale-110');
+            }
+        }
+
+        function unhighlightAllNotes(track) {
+            const color = track.id === 'lead' ? 'indigo' : 'purple';
+            track.el.querySelectorAll('.note-item').forEach(el => {
+                el.classList.remove(`bg-${color}-500`, 'text-white', 'scale-110');
+            });
+        }
+
+        Tone.Transport.on('stop', () => {
+             Object.values(tracks).forEach(unhighlightAllNotes);
+        });
+
+        // --- Global Event Listeners ---
+        playAllBtn.addEventListener('click', playAll);
+        stopAllBtn.addEventListener('click', stopAll);
+        loopToggleBtn.addEventListener('click', toggleLoop);
+    </script>
+</body>
+</html>
+
