@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chord Sequencer</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    
+    <style>
+        /* (Base layout styles are similar) */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; background: #f4f7f6; }
+        h1, h2 { color: #2c3e50; }
+        .container { max-width: 1200px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .part { border: 1px solid #dfe6e9; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .global-settings, .part-controls { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .control { display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; color: #555; }
+        input, select, button { padding: 10px; border: 1px solid #b2bec3; border-radius: 4px; font-size: 14px; }
+        button { cursor: pointer; background: #0984e3; color: #fff; border: none; font-weight: 500; }
+        button:hover { background: #0073cc; }
+        #add-part-btn { background: #00b894; margin-bottom: 20px; }
+        #generate-midi-btn { background: #d63031; font-size: 18px; padding: 12px; }
+
+        /* (Palette styles are unchanged) */
+        .chord-palette-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
+        .degree-group { display: flex; flex-direction: column; gap: 6px; background: #fdfdfd; border: 1px solid #eee; border-radius: 5px; padding: 10px; }
+        .degree-group strong { font-size: 16px; color: #333; text-align: center; margin-bottom: 5px; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; }
+        .degree-group button { font-size: 13px; padding: 8px 5px; text-align: center; }
+        .diatonic { background-color: #27ae60; } .diatonic:hover { background-color: #229954; }
+        .compatible { background-color: #2980b9; } .compatible:hover { background-color: #2471a3; }
+        .deviation { background-color: #e67e22; } .deviation:hover { background-color: #d35400; }
+        .special-buttons button { background-color: #8e44ad; } .special-buttons button:hover { background-color: #7d3c98; }
+
+        /* --- NEW "SMART BLOCK" STYLES --- */
+        .progression-sequence-container {
+            padding: 10px; background: #f4f7f6; border: 1px solid #dfe6e9;
+            border-radius: 5px; margin-top: 15px; min-height: 120px;
+            width: 100%; box-sizing: border-box; display: flex;
+            flex-wrap: wrap; gap: 10px; align-content: flex-start;
+        }
+
+        .chord-block {
+            display: flex; flex-direction: column;
+            background: #fff; border: 1px solid #b2bec3;
+            border-radius: 4px; width: 150px;
+            position: relative; cursor: grab;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            user-select: none;
+        }
+        .chord-block:active { cursor: grabbing; }
+
+        .chord-block-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 10px; background: #ecf0f1; border-bottom: 1px solid #dfe6e9;
+        }
+        .chord-block-symbol { font-size: 16px; font-weight: 600; color: #2c3e50; }
+        .chord-block-remove {
+            background: #d63031; color: white; border: none; border-radius: 50%;
+            width: 20px; height: 20px; font-size: 12px; font-weight: bold;
+            line-height: 20px; text-align: center; padding: 0; cursor: pointer;
+        }
+
+        .chord-block-controls {
+            padding: 10px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .chord-block-controls .control { flex-direction: row; justify-content: space-between; align-items: center; }
+        .chord-block-controls label { font-size: 12px; font-weight: 500; }
+        .chord-block-controls input { width: 50px; padding: 5px; font-size: 12px; }
+
+        .chord-block-notes {
+            list-style: none; margin: 0; padding: 0 10px 10px 10px;
+            border-top: 1px solid #f0f0f0; margin-top: 5px;
+        }
+        .chord-block-notes li {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 13px; padding: 4px 0;
+        }
+        .note-controls button {
+            background: #6c757d; color: white; border: none;
+            width: 20px; height: 20px; font-size: 12px;
+            line-height: 20px; padding: 0; margin-left: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🎵 Chord Sequencer</h1>
+        
+        <div class="global-settings">
+            <div class="control">
+                <label for="song-title">Song Title</label>
+                <input type="text" id="song-title" value="My New Song">
+            </div>
+            <div class="control">
+                <label for="tempo">Tempo (BPM)</label>
+                <input type="number" id="tempo" value="120">
+            </div>
+            <div class="control">
+                <label for="base-octave">Base Octave</label>
+                <input type="number" id="base-octave" value="4">
+            </div>
+        </div>
+
+        <button id="add-part-btn">+ Add Song Part</button>
+        <div id="parts-container"></div>
+        <button id="generate-midi-btn">Generate MIDI File</button>
+        <div id="error-log" style="color: red; margin-top: 15px;"></div>
+    </div>
+
+    <template id="song-part-template">
+        <div class="part">
+            <div class="part-controls">
+                <div class="control">
+                    <label>Part Name</label>
+                    <input type="text" class="part-name" value="Verse">
+                </div>
+                <div class="control">
+                    <label>Key</label>
+                    <select class="part-key">
+                        <option>C</option><option>C#</option><option>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option>
+                    </select>
+                </div>
+                <div class="control">
+                    <label>Scale</label>
+                    <select class="part-scale">
+                        <option>major</option><option>minor_natural</option><option>minor_harmonic</option>
+                    </select>
+                </div>
+                 <div class="control">
+                    <label>Num Loops</label>
+                    <input type="number" class="part-loops" value="1">
+                </div>
+            </div>
+            
+            <div class="chord-palette-container"></div>
+            <div class="special-buttons degree-group" style="margin-top: 10px;">
+                <strong>Special</strong>
+                <button data-symbol="REST">REST</button>
+            </div>
+            
+            <div class="control" style="margin-top: 15px;">
+                <label>Progression Sequence (Drag to re-order)</label>
+                <div class="progression-sequence-container">
+                    </div>
+            </div>
+            
+            <button class="remove-part-btn" style="background: #c00; margin-top: 10px;">Remove Part</button>
+        </div>
+    </template>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const partsContainer = document.getElementById('parts-container');
+            const addPartBtn = document.getElementById('add-part-btn');
+            const generateMidiBtn = document.getElementById('generate-midi-btn');
+            const partTemplate = document.getElementById('song-part-template');
+            const errorLog = document.getElementById('error-log');
+            const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+            const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+            let partCounter = 0;
+
+            // --- Helper: MIDI to Note Name (for JS) ---
+            function midiToNoteName(pitch) {
+                const octave = Math.floor(pitch / 12) - 1;
+                const note = NOTE_NAMES[pitch % 12];
+                return `${note}${octave}`;
+            }
+
+            // --- Add a new song part ---
+            addPartBtn.addEventListener('click', () => {
+                const newPart = partTemplate.content.cloneNode(true);
+                const partElement = newPart.querySelector('.part');
+                partElement.dataset.partId = partCounter++;
+                partElement.querySelector('.part-name').value = `Part ${partCounter}`;
+
+                const keySelect = partElement.querySelector('.part-key');
+                const scaleSelect = partElement.querySelector('.part-scale');
+                keySelect.addEventListener('change', () => fetchChordPalette(partElement));
+                scaleSelect.addEventListener('change', () => fetchChordPalette(partElement));
+                
+                // *** UPDATED: Main Event Listener for each part ***
+                partElement.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    
+                    // --- Add a new chord block ---
+                    if (e.target.tagName === 'BUTTON' && e.target.dataset.symbol) {
+                        if (e.target.classList.contains('remove-part-btn')) {
+                            partElement.remove();
+                        } else {
+                            const symbol = e.target.dataset.symbol;
+                            const baseOctave = document.getElementById('base-octave').value;
+                            addChordBlock(partElement, symbol, baseOctave);
+                        }
+                    }
+                    
+                    // --- Remove a chord block ---
+                    if (e.target.classList.contains('chord-block-remove')) {
+                        e.target.closest('.chord-block').remove();
+                    }
+                    
+                    // --- Edit a note's octave ---
+                    if (e.target.classList.contains('note-oct-up') || e.target.classList.contains('note-oct-down')) {
+                        const block = e.target.closest('.chord-block');
+                        const noteLi = e.target.closest('li');
+                        const noteIndex = parseInt(noteLi.dataset.index);
+                        const shift = e.target.classList.contains('note-oct-up') ? 12 : -12;
+                        
+                        // Update pitch
+                        let pitches = JSON.parse(block.dataset.pitches);
+                        pitches[noteIndex] += shift;
+                        block.dataset.pitches = JSON.stringify(pitches); // Save new state
+                        
+                        // Update UI
+                        noteLi.querySelector('.note-name').textContent = midiToNoteName(pitches[noteIndex]);
+                    }
+                });
+                
+                // --- Listener for Inversion/Duration changes ---
+                partElement.addEventListener('change', (e) => {
+                    const block = e.target.closest('.chord-block');
+                    if (!block) return;
+                    
+                    // --- Re-fetch chord data when inversion changes ---
+                    if (e.target.classList.contains('chord-inversion')) {
+                        const symbol = block.dataset.symbol;
+                        const baseOctave = document.getElementById('base-octave').value;
+                        const inversion = e.target.value;
+                        updateChordBlock(block, symbol, baseOctave, inversion);
+                    }
+                });
+
+                // Initialize SortableJS
+                const sequenceContainer = partElement.querySelector('.progression-sequence-container');
+                new Sortable(sequenceContainer, { animation: 150 });
+
+                partsContainer.appendChild(newPart);
+                fetchChordPalette(partElement);
+            });
+
+            // --- Create a new chord block ---
+            async function addChordBlock(partElement, symbol, baseOctave, inversion = 0) {
+                const sequenceContainer = partElement.querySelector('.progression-sequence-container');
+                
+                // 1. Create the block structure
+                const block = document.createElement('div');
+                block.className = 'chord-block';
+                block.dataset.symbol = symbol;
+                block.innerHTML = `
+                    <div class="chord-block-header">
+                        <span class="chord-block-symbol">${symbol}</span>
+                        <button class="chord-block-remove">&times;</button>
+                    </div>
+                    <div class="chord-block-controls">
+                        <div class="control">
+                            <label>Duration</label>
+                            <input type="number" class="chord-duration" value="4" step="0.25" min="0">
+                        </div>
+                        <div class="control">
+                            <label>Inversion</label>
+                            <input type="number" class="chord-inversion" value="${inversion}" min="0" max="6">
+                        </div>
+                    </div>
+                    <ul class="chord-block-notes">
+                        <li>Loading...</li>
+                    </ul>
+                `;
+                sequenceContainer.appendChild(block);
+                
+                // 2. Fetch data for it (if not a REST)
+                if (symbol.toUpperCase() === 'REST') {
+                    block.querySelector('.chord-block-symbol').textContent = 'REST';
+                    block.querySelector('.chord-block-notes').innerHTML = '<li>(Silence)</li>';
+                    block.querySelector('.chord-inversion').disabled = true;
+                    block.dataset.pitches = "[]"; // Empty pitches
+                } else {
+                    await updateChordBlock(block, symbol, baseOctave, inversion);
+                }
+            }
+            
+            // --- Update a block with new pitch data ---
+            async function updateChordBlock(block, symbol, baseOctave, inversion) {
+                const notesList = block.querySelector('.chord-block-notes');
+                notesList.innerHTML = '<li>Fetching...</li>';
+                
+                try {
+                    const response = await fetch(`/get-chord-data?symbol=${symbol}&base_octave=${baseOctave}&inversion=${inversion}`);
+                    const data = await response.json();
+                    
+                    if (data.error) throw new Error(data.error);
+
+                    // Store the raw pitches on the block
+                    block.dataset.pitches = JSON.stringify(data.pitches);
+                    
+                    // Update UI
+                    notesList.innerHTML = ''; // Clear
+                    data.note_names.forEach((name, index) => {
+                        const li = document.createElement('li');
+                        li.dataset.index = index; // Store index for editing
+                        li.innerHTML = `
+                            <span class="note-name">${name}</span>
+                            <span class="note-controls">
+                                <button class="note-oct-down" title="Octave Down">▼</button>
+                                <button class="note-oct-up" title="Octave Up">▲</button>
+                            </span>
+                        `;
+                        notesList.appendChild(li);
+                    });
+                    
+                } catch (err) {
+                    notesList.innerHTML = `<li>Error loading notes.</li>`;
+                    console.error(err);
+                }
+            }
+
+            // --- Fetch Chord Palette (Unchanged) ---
+            async function fetchChordPalette(partElement) {
+                // (This function is identical to the previous step)
+                const key = partElement.querySelector('.part-key').value;
+                const scale = partElement.querySelector('.part-scale').value;
+                const paletteContainer = partElement.querySelector('.chord-palette-container');
+                paletteContainer.innerHTML = 'Loading chord palette...';
+                try {
+                    const response = await fetch(`/get-chord-palette?key=${key}&scale=${scale}`);
+                    if (!response.ok) { const err = await response.json(); throw new Error(err.error || 'Server error'); }
+                    const palette = await response.json();
+                    if (palette.error) throw new Error(palette.error);
+                    paletteContainer.innerHTML = '';
+                    palette.forEach(degreeInfo => {
+                        const degreeGroup = document.createElement('div');
+                        degreeGroup.className = 'degree-group';
+                        const title = document.createElement('strong');
+                        title.textContent = `${ROMAN_NUMERALS[degreeInfo.degree - 1]} (${degreeInfo.root})`;
+                        degreeGroup.appendChild(title);
+                        degreeInfo.options.forEach(option => {
+                            const button = document.createElement('button');
+                            button.textContent = option.symbol;
+                            button.dataset.symbol = option.symbol;
+                            button.classList.add(option.type);
+                            degreeGroup.appendChild(button);
+                        });
+                        paletteContainer.appendChild(degreeGroup);
+                    });
+                } catch (err) {
+                    paletteContainer.innerHTML = `<span style="color: red;">Error: ${err.message}</span>`;
+                }
+            }
+
+            // --- *** UPDATED: Generate MIDI *** ---
+            generateMidiBtn.addEventListener('click', async () => {
+                errorLog.textContent = '';
+                generateMidiBtn.textContent = 'Generating...';
+                
+                const globalSettings = {
+                    title: document.getElementById('song-title').value,
+                    tempo: document.getElementById('tempo').value,
+                    baseOctave: document.getElementById('base-octave').value,
+                    // You could add instrument/volume controls here
+                    instrument: 50,
+                    volume: 90
+                };
+
+                // --- Build the new, simpler data structure ---
+                const progressionData = [];
+                const partElements = partsContainer.querySelectorAll('.part');
+                
+                partElements.forEach(part => {
+                    const partData = {
+                        name: part.querySelector('.part-name').value,
+                        num_loops: part.querySelector('.part-loops').value,
+                        blocks: []
+                    };
+                    
+                    const chordBlocks = part.querySelectorAll('.progression-sequence-container .chord-block');
+                    chordBlocks.forEach(block => {
+                        partData.blocks.push({
+                            // Pitches are read directly from the block's final state
+                            pitches: JSON.parse(block.dataset.pitches || "[]"),
+                            duration: block.querySelector('.chord-duration').value
+                        });
+                    });
+                    
+                    progressionData.push(partData);
+                });
+
+                const payload = {
+                    settings: globalSettings,
+                    progression: progressionData // This is the new key
+                };
+
+                // --- (Fetch/Download logic is unchanged) ---
+                try {
+                    const response = await fetch('/generate-midi', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) { const errData = await response.json(); throw new Error(errData.error || 'Unknown server error'); }
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none'; a.href = url;
+                    const contentDisp = response.headers.get('content-disposition');
+                    let filename = 'generated_song.mid';
+                    if (contentDisp) { const match = contentDisp.match(/filename="(.+)"/); if (match) filename = match[1]; }
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url); a.remove();
+                } catch (err) {
+                    console.error(err);
+                    errorLog.textContent = `Error: ${err.message}`;
+                }
+                
+                generateMidiBtn.textContent = 'Generate MIDI File';
+            });
+
+            // Add one part by default
+            addPartBtn.click();
+        });
+    </script>
+
+</body>
+</html>
